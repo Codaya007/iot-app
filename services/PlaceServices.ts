@@ -4,15 +4,9 @@ import axios from "axios";
 
 export const getByUUID = async (uuid: string): Promise<Place | null> => {
     try {
-        const response = await fetch(`${API_BASEURL}/places/uuid/${uuid}`);
+        const { data } = await axios.get(`${API_BASEURL}/places/uuid/${uuid}`);
 
-        if (response.ok) {
-            const data: Place = await response.json();
-
-            return data;
-        } else {
-            return null; // Si no se encuentra el lugar
-        }
+        return data;
     } catch (error) {
         console.error('Error al obtener el lugar:', error);
         return null;
@@ -22,14 +16,9 @@ export const getByUUID = async (uuid: string): Promise<Place | null> => {
 export const getById = async (id: string): Promise<Place | null> => {
     // Lógica para buscar el lugar por ID
     try {
-        const response = await fetch(`${API_BASEURL}/places/${id}`);
+        const { data } = await axios.get(`${API_BASEURL}/places/${id}`);
 
-        if (response.ok) {
-            const data: Place = await response.json();
-            return data;
-        } else {
-            return null; // Si no se encuentra el lugar
-        }
+        return data;
     } catch (error) {
         console.error('Error al obtener el lugar:', error);
         return null;
@@ -39,7 +28,6 @@ export const getById = async (id: string): Promise<Place | null> => {
 export const search = async (text: string): Promise<Place[]> => {
     try {
         const { data } = await axios.get(`${API_BASEURL}/places?search=${text}`);
-
 
         if (data) {
             return data.results;

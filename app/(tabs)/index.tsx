@@ -5,7 +5,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useEffect, useState } from "react";
 import * as NotificationService from "@/services/NotificationServices";
 import * as PlaceService from "@/services/PlaceServices";
-import { BleManager } from "react-native-ble-plx";
+import { BleManager, Device } from "react-native-ble-plx";
 import { PermissionsAndroid, Platform, Alert } from "react-native";
 
 export type Place = {
@@ -27,10 +27,10 @@ export type Notification = {
 const manager = new BleManager();
 
 export default function HomeScreen() {
-  const [currentPlaceUUID, setCurrentPlaceUUID] = useState<string | null>();
+  const [currentPlaceUUID, setCurrentPlaceUUID] = useState<string | null>(null);
   const [currentPlace, setCurrentPlace] = useState<Place | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [bleDevices, setBleDevices] = useState([]);
+  const [bleDevices, setBleDevices] = useState<Device[]>([]);
 
   useEffect(() => {
     const getPlace = async () => {
@@ -107,15 +107,33 @@ export default function HomeScreen() {
         return;
       }
 
-      if (device && device.name) {
-        console.log("Dispositivo detectado:", device.name);
-        // Aquí puedes filtrar por el UUID del beacon que te interesa
-        if (device.id === "UUID_DEL_BEACON") {
-          setCurrentPlaceUUID(device.id);
+      if (!device) {
+        console.log("No day dispositivo");
+        return;
+      }
+
+      // console.info(device);
+      // console.log({ currentPlaceUUID });
+
+      // Verificamos si el dispositivo tiene UUID de servicio
+      if (
+        device.name === "MyESP32" &&
+        device.serviceUUIDs &&
+        device.serviceUUIDs.length > 0
+      ) {
+        const UUID = device.serviceUUIDs[0];
+        console.log("Dispositivo detectado con UUID:", UUID);
+
+        // Si el UUID es diferente al actual, actualizamos
+        if (UUID && UUID !== currentPlaceUUID) {
+          setCurrentPlaceUUID(UUID);
+          setBleDevices((prevDevices) => [...prevDevices, device]); // Agregar el dispositivo a la lista
         }
       }
     });
   };
+
+  console.log({ currentPlaceUUID });
 
   return (
     <ParallaxScrollView
@@ -138,8 +156,8 @@ export default function HomeScreen() {
 
           <ThemedText type="subtitle">Anuncios</ThemedText>
           {notifications.length > 0 ? (
-            notifications.map((not) => (
-              <ThemedText key={not._id}>{not.message}</ThemedText>
+            notifications.map((not, i) => (
+              <ThemedText key={i}>{not.message}</ThemedText>
             ))
           ) : (
             <ThemedText>No hay anuncios disponibles.</ThemedText>
