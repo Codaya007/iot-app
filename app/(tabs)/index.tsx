@@ -3,7 +3,10 @@ import ParallaxScrollView from "@/components/ParallaxScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useEffect, useState } from "react";
-import { saveFavPlaces } from "@/utils";
+import * as NotificationService from "@/services/NotificationServices";
+import * as PlaceService from "@/services/PlaceServices";
+import { BleManager } from "react-native-ble-plx";
+import { PermissionsAndroid, Platform, Alert } from "react-native";
 
 export type Place = {
   _id: string;
@@ -21,43 +24,98 @@ export type Notification = {
   message: string;
 };
 
-const placeNotifications: Notification[] = [
-  {
-    _id: 0,
-    placeId: "677b54ff4cef74fa72da8705",
-    message:
-      "Estás cerca de 'Decanato de la Facultad FEINRR'. Oficina del decano de la facultad, Ing. Julio Romero. Horario de atención: De 9am a 12pm y de 3pm a 5pm",
-  },
-  {
-    _id: 1,
-    placeId: "677b54ff4cef74fa72da8705",
-    message: "Otros lugares cercanos: Salón de eventos 2, Secretaría Decanato",
-  },
-];
-
-const favPlaces = [
-  { _id: "123", name: "Decanato de la facultad" },
-  { _id: "456", name: "Director de Computación" },
-  { _id: "127", name: "Decanato de la facultad" },
-  { _id: "677b54ff4cef74fa72da8705", name: "Director de Computación" },
-];
-
-export const place = {
-  _id: "677b54ff4cef74fa72da8705",
-  name: "Decanato de la Facultad FEINRR",
-  additionalInformation: "Oficina del decano de la facultad, Ing. Julio Romero",
-  hours: "De 9am a 12pm y de 3pm a 5pm",
-  uuid: "12345678-1234-5678-1234-56789abcdef0",
-  adjacencyPlaces: ["Salón de eventos 2", "Secretaría Decanato"],
-  __v: 0,
-};
+const manager = new BleManager();
 
 export default function HomeScreen() {
-  const [currentPlace, setCurrentPlace] = useState<Place | null>(place);
+  const [currentPlaceUUID, setCurrentPlaceUUID] = useState<string | null>();
+  const [currentPlace, setCurrentPlace] = useState<Place | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [bleDevices, setBleDevices] = useState([]);
 
   useEffect(() => {
-    saveFavPlaces(favPlaces);
+    const getPlace = async () => {
+      const place = await PlaceService.getByUUID(
+        currentPlaceUUID?.toString() || ""
+      );
+
+      setCurrentPlace(place);
+    };
+
+    const getNotifications = async () => {
+      const notifications = await NotificationService.getByPlace(
+        currentPlaceUUID?.toString() || ""
+      );
+
+      if (notifications) setNotifications(notifications);
+      else console.log("No se pudieron obtener las notificaciones por lugar");
+    };
+
+    if (currentPlaceUUID) {
+      getNotifications();
+      getPlace();
+    } else {
+      setNotifications([]);
+      setCurrentPlace(null);
+    }
+  }, [currentPlaceUUID]);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      requestPermissions();
+    }
+
+    // Escanea dispositivos BLE cuando el componente se monta
+    const subscription = manager.onStateChange((state) => {
+      if (state === "PoweredOn") {
+        startScanning();
+        subscription.remove();
+      }
+    }, true);
+
+    return () => {
+      manager.stopDeviceScan();
+    };
   }, []);
+
+  // Función para solicitar permisos en Android
+  const requestPermissions = async () => {
+    const granted = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    ]);
+
+    if (
+      granted["android.permission.BLUETOOTH_SCAN"] ===
+        PermissionsAndroid.RESULTS.GRANTED &&
+      granted["android.permission.ACCESS_FINE_LOCATION"] ===
+        PermissionsAndroid.RESULTS.GRANTED
+    ) {
+      console.log("Permisos concedidos");
+    } else {
+      Alert.alert(
+        "Permisos necesarios",
+        "Se requieren permisos para usar Bluetooth."
+      );
+    }
+  };
+
+  const startScanning = () => {
+    console.log("Iniciando escaneo...");
+    manager.startDeviceScan(null, null, (error, device) => {
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      if (device && device.name) {
+        console.log("Dispositivo detectado:", device.name);
+        // Aquí puedes filtrar por el UUID del beacon que te interesa
+        if (device.id === "UUID_DEL_BEACON") {
+          setCurrentPlaceUUID(device.id);
+        }
+      }
+    });
+  };
 
   return (
     <ParallaxScrollView
@@ -79,15 +137,18 @@ export default function HomeScreen() {
           </ThemedText>
 
           <ThemedText type="subtitle">Anuncios</ThemedText>
-          {placeNotifications.map((not) => {
-            return <ThemedText key={not._id}>{not.message}</ThemedText>;
-          })}
+          {notifications.length > 0 ? (
+            notifications.map((not) => (
+              <ThemedText key={not._id}>{not.message}</ThemedText>
+            ))
+          ) : (
+            <ThemedText>No hay anuncios disponibles.</ThemedText>
+          )}
         </ThemedView>
       ) : (
         <ThemedView>
           <ThemedText>
-            En este momento no te encuentras cerca del decanato FEIRNNR de la
-            UNL🫤
+            En este momento no te encuentras cerca de ningún punto 🫤
           </ThemedText>
         </ThemedView>
       )}

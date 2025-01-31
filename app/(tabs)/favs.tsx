@@ -4,11 +4,12 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { IconSymbol } from "@/components/ui/IconSymbol";
 import { ThemedButton } from "@/components/ThemedButton";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getFavPlaces, saveFavPlaces } from "@/utils"; // Asegúrate de tener la función removeFavPlace
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "./explore";
 import { tintColorLight } from "@/constants/Colors";
+import { useFocusEffect } from "@react-navigation/native";
 
 export type FavoritePlace = {
   _id: string;
@@ -36,25 +37,30 @@ export default function TabThreeScreen() {
   const handleRemoveFavorite = async (id: string) => {
     try {
       // Eliminamos del estado local
-      setFavPlaces((prevPlaces) =>
-        prevPlaces.filter((place) => place._id !== id)
-      );
+      const newFavPlaces = favPlaces.filter((place) => place._id !== id);
+      setFavPlaces(newFavPlaces);
 
       // Guardamos en el Storage
-      await saveFavPlaces(favPlaces);
+      await saveFavPlaces(newFavPlaces);
     } catch (error) {
       console.error("Error al eliminar lugar favorito", error);
     }
   };
 
-  useEffect(() => {
-    loadFavPlaces(); // Llamar la función cuando el componente se monte
-  }, []);
+  // useEffect(() => {
+  //   loadFavPlaces(); // Llamar la función cuando el componente se monte
+  // }, []);
 
   // Función para manejar la navegación al explorar con el id del lugar
   const handleNavigateToExplore = (id: string) => {
     navigation.navigate("explore", { placeId: id }); // Pasa el id del lugar como parámetro
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadFavPlaces();
+    }, [])
+  );
 
   return (
     <ParallaxScrollView

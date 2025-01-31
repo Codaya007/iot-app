@@ -1,11 +1,11 @@
 import { StyleSheet, View } from "react-native";
 import ParallaxScrollView from "@/components/ParallaxScrollView";
 import { IconSymbol } from "@/components/ui/IconSymbol";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useFocusEffect, useRoute } from "@react-navigation/native";
 import { tintColorLight } from "@/constants/Colors";
 import { ThemedSearchbar } from "@/components/ThemedSearchBar";
-import { useEffect, useState } from "react";
-import { place, Place } from ".";
+import { useCallback, useEffect, useState } from "react";
+import { Place } from ".";
 import { ThemedText } from "@/components/ThemedText";
 import { Collapsible } from "@/components/Collapsible";
 import { UnorderedList } from "@/components/UnorderedList";
@@ -27,7 +27,7 @@ export default function TabTwoScreen() {
   const { placeId } = route?.params || {}; // Obtén el id del lugar si existe
   const [searchText, setsearchText] = useState<string>(""); // Para el texto del buscador
   const [isLoading, setIsLoading] = useState<boolean>(false); // Para el estado de carga
-  const [searchResults, setsearchResults] = useState<Place[]>([place]); // Para los resultados de búsqueda
+  const [searchResults, setsearchResults] = useState<Place[]>([]); // Para los resultados de búsqueda
   const [favPlaces, setFavPlaces] = useState<FavoritePlace[]>([]); // Para los lugares favoritos
   const [placeDetail, setPlaceDetail] = useState<Place | null>(null); // Detalles del lugar si se pasa un placeId
 
@@ -44,27 +44,29 @@ export default function TabTwoScreen() {
 
   const addFavPlace = async (place: Place) => {
     try {
-      setFavPlaces([...favPlaces, { _id: place._id, name: place.name }]);
-      await saveFavPlaces(favPlaces);
+      const newFavPlaces = [...favPlaces, { _id: place._id, name: place.name }];
+      setFavPlaces(newFavPlaces);
+      await saveFavPlaces(newFavPlaces);
       console.info("Lugar guardado");
     } catch (error) {
       console.error("No se ha podido guardar");
     }
   };
 
-  useEffect(() => {
-    loadFavPlaces(); // Llamar la función cuando el componente se monte
-  }, []);
-
   // Lógica para realizar la búsqueda
   const handleSearch = async () => {
     setPlaceDetail(null);
+
+    console.log({ searchText });
 
     if (searchText.trim()) {
       setIsLoading(true);
       try {
         // Aquí llamas al servicio de búsqueda
         const results = await PlaceServices.search(searchText); // Asegúrate de que este método exista
+
+        console.log({ results });
+
         setsearchResults(results);
       } catch (error) {
         console.error("Error al realizar la búsqueda:", error);
@@ -74,28 +76,37 @@ export default function TabTwoScreen() {
     }
   };
 
-  useEffect(() => {
-    if (placeId) {
-      // Si hay un placeId en los parámetros, buscamos el lugar
-      const fetchPlaceById = async () => {
-        setIsLoading(true);
-        try {
-          const place = await PlaceServices.getById(placeId); // Llama al servicio para obtener el lugar por ID
-          if (place) {
-            setPlaceDetail(place); // Si se encuentra, lo guardamos en el estado
-          } else {
-            setPlaceDetail(null); // Si no se encuentra, dejamos placeDetail como null
-          }
-        } catch (error) {
-          console.error("Error al obtener el lugar:", error);
-          setPlaceDetail(null); // Si hay un error, ponemos placeDetail a null
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchPlaceById(); // Llamar a la función cuando el placeId cambie
+  // Función para obtener el lugar por ID
+  const fetchPlaceById = async (placeId: string) => {
+    setIsLoading(true);
+    try {
+      const place = await PlaceServices.getById(placeId);
+      if (place) {
+        setPlaceDetail(place);
+      } else {
+        setPlaceDetail(null);
+      }
+    } catch (error) {
+      console.error("Error al obtener el lugar:", error);
+      setPlaceDetail(null);
+    } finally {
+      setIsLoading(false);
     }
-  }, [placeId]); // Este efecto depende de placeId
+  };
+
+  // Ejecutar efectos cada vez que la pantalla se enfoque
+  useFocusEffect(
+    useCallback(() => {
+      loadFavPlaces(); // Cargar lugares favoritos
+      setsearchResults([]);
+      setsearchText("");
+      if (placeId) {
+        fetchPlaceById(placeId); // Obtener lugar por ID si placeId está disponible
+      } else {
+        setPlaceDetail(null);
+      }
+    }, [placeId]) // Dependencia de placeId
+  );
 
   return (
     <ParallaxScrollView
